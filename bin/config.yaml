@@ -1,0 +1,93 @@
+
+config:                                          # 脚本配置名称,请勿更改
+  supervisordUrl: http://localhost:9001/RPC2     # supervisor的接口地址, 默认使用本地socket文件unix:///var/run/supervisor.sock
+  supervisordUser: user                          # supervisor中设置的username, 没有设置可不填
+  supervisordPass: 123                           # supervisor中设置的password, 没有设置可不填
+  mail:                                          # 邮箱通知配置
+#    host: 'smtp.test.com'
+#    port: '465'
+#    user: 'ops@test.com'
+#    pass: '123456'
+#    to_list: ['test@test.com']
+
+# 内存方式监控
+cat1:
+  program: test1          # supervisor中配置的program名称
+  type: mem               # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  maxMem: 1024            # 内存阈值, 超过则为检测失败. 单位MB, 默认: 1024
+  memType: rss            # 内存使用分类: rss, pss, uss 默认: rss
+  pidGet: supervisor      # 获取pid的方式: supervisor,name,file, 选择name时,按program名称搜索pid,选择file时,需指定pidFile 默认: supervisor
+  pidFile: /var/run/t.pid # 指定pid文件的路径, 只在pidGet为file的时候有用
+  periodSeconds: 5        # 检查的频率(以秒为单位), 默认: 5
+  initialDelaySeconds: 1  # 首次检查等待的时间(以秒为单位), 默认: 1
+  failureThreshold: 3     # 检查成功后, 最少连续检查失败多少次才被认定为失败, 默认: 3
+  successThreshold: 1     # 失败后检查成功的最小连续成功次数, 默认: 1
+  action: restart,email   # 触发的动作: restart,kill,exec,email (restart,kill和exec三者互斥,同时设置时restart生效) 默认: restart,email
+  execCmd: command        # action exec 的执行命令
+  sendResolved: False     # 是否发送恢复通知,仅用作于email. 默认: False
+
+# cpu方式监控
+cat2:
+  program: test2          # supervisor中配置的program名称
+  type: cpu               # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  maxCpu: 90              # CPU阈值, 超过则为检测失败. 单位% 默认: 90%
+  pidGet: supervisor      # 获取pid的方式: supervisor,name,file, 选择name时,按program名称搜索pid,选择file时,需指定pidFile 默认: supervisor
+  pidFile: /var/run/t.pid # 指定pid文件的路径, 只在pidGet为file的时候有用
+  periodSeconds: 5        # 检查的频率(以秒为单位), 默认: 5
+  initialDelaySeconds: 1  # 首次检查等待的时间(以秒为单位), 默认: 1
+  failureThreshold: 3     # 检查成功后, 最少连续检查失败多少次才被认定为失败, 默认: 3
+  successThreshold: 1     # 失败后检查成功的最小连续成功次数, 默认: 1
+  action: restart,email   # 触发的动作: restart,kill,exec,email (restart,kill和exec三者互斥,同时设置时restart生效) 默认: restart,email
+  execCmd: command        # action exec 的执行命令
+  sendResolved: False     # 是否发送恢复通知,仅用作于email. 默认: False
+
+# HTTP方式监控
+cat3:
+  program: test3          # supervisor中配置的program名称
+  type: http              # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  method: GET             # http动作: POST,GET 默认: GET
+  host: localhost         # 主机地址, 默认: localhost
+  path: /                 # URI地址, 默认: /
+  port: 80                # 检测端口, 默认: 80
+  json: '{"a":"b"}'       # POST的json数据
+  headers: '{"c":1}'      # http的header头部数据
+  username: test          # 用于http的basic认证
+  password: pass          # 用于http的basic认证
+  periodSeconds: 5        # 检查的频率(以秒为单位), 默认: 5
+  initialDelaySeconds: 1  # 首次检查等待的时间(以秒为单位), 默认: 1
+  timeoutSeconds: 3       # 检查超时的秒数, 默认: 3
+  failureThreshold: 3     # 检查成功后, 最少连续检查失败多少次才被认定为失败, 默认: 3
+  successThreshold: 1     # 失败后检查成功的最小连续成功次数, 默认: 1
+  action: restart,email   # 触发的动作: restart,kill,exec,email (restart,kill和exec三者互斥,同时设置时restart生效) 默认: restart,email
+  execCmd: command        # action exec 的执行命令
+  sendResolved: False     # 是否发送恢复通知,仅用作于email. 默认: False
+
+# TCP方式监控
+cat4:
+  program: test4          # supervisor中配置的program名称
+  type: tcp               # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  host: localhost         # 主机地址, 默认: localhost
+  port: 80                # 检测端口, 默认: 80
+  periodSeconds: 5        # 检查的频率(以秒为单位), 默认: 5
+  initialDelaySeconds: 1  # 首次检查等待的时间(以秒为单位), 默认: 1
+  timeoutSeconds: 3       # 检查超时的秒数, 默认: 3
+  failureThreshold: 3     # 检查成功后, 最少连续检查失败多少次才被认定为失败, 默认: 3
+  successThreshold: 1     # 失败后检查成功的最小连续成功次数, 默认: 1
+  action: restart,email   # 触发的动作: restart,kill,exec,email (restart,kill和exec三者互斥,同时设置时restart生效) 默认: restart,email
+  execCmd: command        # action exec 的执行命令
+  sendResolved: False     # 是否发送恢复通知,仅用作于email. 默认: False
+
+# 重启次数监控
+cat5:
+  program: test5          # supervisor中配置的program名称
+  type: restart           # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  pidGet: supervisor      # 获取pid的方式: supervisor,name,file, 选择name时,按program名称搜索pid,选择file时,需指定pidFile 默认: supervisor(重启次数监控时仅支持supervisor)
+  pidFile: /var/run/t.pid # 指定pid文件的路径, 只在pidGet为file的时候有用
+  mincontinueRun: 28800   # 进程持续运行最小时长(以秒为单位,超过该时长才认为进程运行正常), 默认: 28800(8*60*60:8小时)
+  periodSeconds: 5        # 检查的频率(以秒为单位), 默认: 5
+  initialDelaySeconds: 1  # 首次检查等待的时间(以秒为单位), 默认: 1
+  failureThreshold: 3     # 检查成功后, 最少连续检查失败多少次才被认定为失败, 默认: 3
+  successThreshold: 14400 # 失败后检查成功的最小连续成功次数, 默认: 1(重启次数监控时默认为最少连续运行时间/检查频率)
+  action: exec            # 触发的动作: restart,kill,exec,email (restart,kill和exec三者互斥,同时设置时restart生效) 默认: restart,email
+  execCmd: echo '123456'  # action exec 的执行命令
+  sendResolved: False     # 是否发送恢复通知,仅用作于email. 默认: False
