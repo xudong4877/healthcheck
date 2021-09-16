@@ -9,7 +9,7 @@ set -eu
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 #cur_dir=$(cd -P -- "$(dirname -- "$0")" && pwd -P)
-
+function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
 # 入口函数
 main() {
     result=0
@@ -36,6 +36,17 @@ main() {
         fi
     fi
     cd ../
+    #judge version
+    if [ -f /etc/supervisord.d/scripts/healthCheck ]; then
+        cur_version=$(python3 /etc/supervisord.d/scripts/healthCheck -v)
+        install_version=$(python3 bin/healthCheck -v)
+        if version_ge $cur_version $install_version; then
+            echo "current version(${cur_version}) greater than or equal install version(${install_version})."
+            result=1
+            cd ../;rm -rf "${cur_dir}"
+            exit ${result}
+        fi
+    fi
     #2.install supervisor,psutil
     cd ./pypackages || exit 1
     pip3 install ./*

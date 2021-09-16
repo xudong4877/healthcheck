@@ -1,6 +1,7 @@
 [Unit]
 Description=Process Monitoring and Control Daemon
-After=rc-local.service nss-user-lookup.target
+Before=rc-local.service
+After=nss-user-lookup.target
  
 [Service]
 Type=forking

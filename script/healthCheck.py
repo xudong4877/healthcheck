@@ -298,6 +298,8 @@ class HealthCheck(object):
             # 使用重启次数方式监控,默认将连续成功阈值设置为最小持续运行时长/检查频率
             successThreshold = mincontinueRun/periodSeconds
             check_method = self.restart_check
+        elif check_type == 'command':
+            check_method = self.cmd_check
 
         while 1:
             if program not in check_state:
@@ -326,6 +328,9 @@ class HealthCheck(object):
                     check_state[program]['success'] = 0
                 elif check_status == 'success':
                     check_state[program]['success'] += 1
+                elif check_status == 'unstart':
+                    check_state[program]['success'] = 0
+                    check_state[program]['failure'] = 0
 
                 # 先判断成功次数
                 if check_state[program]['success'] >= successThreshold:
@@ -384,6 +389,10 @@ class HealthCheck(object):
         config_username = config.get('username', '')
         config_password = config.get('password', '')
 
+        pid_get = config.get('pidGet', 'supervisor')
+        pid_file = config.get('pidFile', )
+        local_proc = config.get('localProc', 1)
+
         HEADERS = {'User-Agent': 'meichuang http_check'}
 
         headers = HEADERS.copy()
@@ -407,6 +416,14 @@ class HealthCheck(object):
 
         check_info = '%s %s %s %s %s %s' % (config_host, config_port, config_path, config_method,
                                             config_body, headers)
+
+        if local_proc == 1:
+            pid, err = self.get_pid(program, pid_get, pid_file)
+            if pid == 0:
+                self.log(program, '[http_check]: check error, program not starting.')
+                return {'status': 'unstart',
+                        'msg': '[http_check] program not starting, message: %s.' % err,
+                        'info': check_info}
 
         try:
             httpClient = httplib.HTTPConnection(config_host, config_port, timeout=config_timeoutSeconds)
@@ -434,7 +451,19 @@ class HealthCheck(object):
         host = config.get('host', 'localhost')
         port = config.get('port', 80)
         timeoutSeconds = config.get('timeoutSeconds', 3)
+        pid_get = config.get('pidGet', 'supervisor')
+        pid_file = config.get('pidFile', )
+        local_proc = config.get('localProc', 1)
         check_info = '%s %s' % (host, port)
+
+        if local_proc == 1:
+            pid, err = self.get_pid(program, pid_get, pid_file)
+            if pid == 0:
+                self.log(program, '[tcp_check]: check error, program not starting.')
+                return {'status': 'unstart',
+                        'msg': '[tcp_check] program not starting, message: %s.' % err,
+                        'info': check_info}
+
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(timeoutSeconds)
@@ -564,6 +593,35 @@ class HealthCheck(object):
                 'pid': pid,
                 'msg': '[restart_check] cur_pid({pid}) pre_pid({prepid})'.format(pid=pid, prepid=prepid),
                 'info': check_info}
+
+    def cmd_check(self, config, prepid):
+        """
+        用于检查执行命令
+        :param config:
+        :return: dict
+        """
+        program = config.get('program')
+        checkCmd = config.get('checkCmd', '')
+        successValue = config.get('successValue', 0)
+        pid_get = config.get('pidGet', 'supervisor')
+        pid_file = config.get('pidFile', )
+        local_proc = config.get('localProc', 1)
+        check_info = '%s %s' % (checkCmd, successValue)
+
+        if local_proc == 1:
+            pid, err = self.get_pid(program, pid_get, pid_file)
+            if pid == 0:
+                self.log(program, '[cmd_check]: check error, program not starting.')
+                return {'status': 'unstart',
+                        'msg': '[cmd_check] program not starting, message: %s.' % err,
+                        'info': check_info}
+
+        exitcode, stdout, stderr = shell(checkCmd)
+        if exitcode != successValue:
+            err = stderr.decode()
+            self.log(program, '[cmd_check]: exec(cmd:%s,return:%s) failed, %s', checkCmd, exitcode, err)
+            return {'status': 'failure', 'msg': '[cmd_check] exec(cmd:%s,return:%s) failed, %s' % (checkCmd, exitcode, err), 'info': check_info}
+        return {'status': 'success', 'msg': '[cmd_check] exec(cmd:%s) succeeded' % checkCmd, 'info': check_info}
 
     def action(self, program, **args):
         """
@@ -836,7 +894,7 @@ config:                                          # 脚本配置名称,请勿更�
 # 内存方式监控
 cat1:
   program: test1          # supervisor中配置的program名称
-  type: mem               # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  type: mem               # 检查类型: http,tcp,mem,cpu,restart,command 默认: http
   maxMem: 1024            # 内存阈值, 超过则为检测失败. 单位MB, 默认: 1024
   memType: rss            # 内存使用分类: rss, pss, uss 默认: rss
   pidGet: supervisor      # 获取pid的方式: supervisor,name,file, 选择name时,按program名称搜索pid,选择file时,需指定pidFile 默认: supervisor
@@ -852,7 +910,7 @@ cat1:
 # cpu方式监控
 cat2:
   program: test2          # supervisor中配置的program名称
-  type: cpu               # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  type: cpu               # 检查类型: http,tcp,mem,cpu,restart,command 默认: http
   maxCpu: 90              # CPU阈值, 超过则为检测失败. 单位% 默认: 90%
   pidGet: supervisor      # 获取pid的方式: supervisor,name,file, 选择name时,按program名称搜索pid,选择file时,需指定pidFile 默认: supervisor
   pidFile: /var/run/t.pid # 指定pid文件的路径, 只在pidGet为file的时候有用
@@ -867,7 +925,8 @@ cat2:
 # HTTP方式监控
 cat3:
   program: test3          # supervisor中配置的program名称
-  type: http              # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  type: http              # 检查类型: http,tcp,mem,cpu,restart,command 默认: http
+  localProc: 1            # 是否为本地进程: 0(不是本地进程),1(本地进程) 默认: 1
   method: GET             # http动作: POST,GET 默认: GET
   host: localhost         # 主机地址, 默认: localhost
   path: /                 # URI地址, 默认: /
@@ -888,7 +947,8 @@ cat3:
 # TCP方式监控
 cat4:
   program: test4          # supervisor中配置的program名称
-  type: tcp               # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  type: tcp               # 检查类型: http,tcp,mem,cpu,restart,command 默认: http
+  localProc: 1            # 是否为本地进程: 0(不是本地进程),1(本地进程) 默认: 1
   host: localhost         # 主机地址, 默认: localhost
   port: 80                # 检测端口, 默认: 80
   periodSeconds: 5        # 检查的频率(以秒为单位), 默认: 5
@@ -903,7 +963,7 @@ cat4:
 # 重启次数监控
 cat5:
   program: test5          # supervisor中配置的program名称
-  type: restart           # 检查类型: http,tcp,mem,cpu,restart 默认: http
+  type: restart           # 检查类型: http,tcp,mem,cpu,restart,command 默认: http
   pidGet: supervisor      # 获取pid的方式: supervisor,name,file, 选择name时,按program名称搜索pid,选择file时,需指定pidFile 默认: supervisor(重启次数监控时仅支持supervisor)
   pidFile: /var/run/t.pid # 指定pid文件的路径, 只在pidGet为file的时候有用
   mincontinueRun: 28800   # 进程持续运行最小时长(以秒为单位,超过该时长才认为进程运行正常), 默认: 28800(8*60*60:8小时)
@@ -913,6 +973,22 @@ cat5:
   successThreshold: 14400 # 失败后检查成功的最小连续成功次数, 默认: 1(重启次数监控时默认为最少连续运行时间/检查频率)
   action: exec            # 触发的动作: restart,kill,exec,email (restart,kill和exec三者互斥,同时设置时restart生效) 默认: restart,email
   execCmd: echo '123456'  # action exec 的执行命令
+  sendResolved: False     # 是否发送恢复通知,仅用作于email. 默认: False
+
+# command方式监控
+cat6:
+  program: test6          # supervisor中配置的program名称
+  type: command           # 检查类型: http,tcp,mem,cpu,restart,command 默认: http
+  localProc: 1            # 是否为本地进程: 0(不是本地进程),1(本地进程) 默认: 1
+  checkCmd: command       # check exec 的执行命令
+  successValue: 0         # 成功返回结果, 默认: 0
+  periodSeconds: 5        # 检查的频率(以秒为单位), 默认: 5
+  initialDelaySeconds: 1  # 首次检查等待的时间(以秒为单位), 默认: 1
+  timeoutSeconds: 3       # 检查超时的秒数, 默认: 3
+  failureThreshold: 3     # 检查成功后, 最少连续检查失败多少次才被认定为失败, 默认: 3
+  successThreshold: 1     # 失败后检查成功的最小连续成功次数, 默认: 1
+  action: restart,email   # 触发的动作: restart,kill,exec,email (restart,kill和exec三者互斥,同时设置时restart生效) 默认: restart,email
+  execCmd: command        # action exec 的执行命令
   sendResolved: False     # 是否发送恢复通知,仅用作于email. 默认: False
 """
         with open(config_file, 'w') as f:
